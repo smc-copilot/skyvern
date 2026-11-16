@@ -11,6 +11,12 @@ from errors import EnterpriseError
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 FORK_IDENTITY_RE = re.compile(r"github\.com[:/]+smc-copilot/skyvern(?:\.git)?(?:/|$)", re.IGNORECASE)
+UPSTREAM_IDENTITY_RE = re.compile(r"github\.com[:/]+Skyvern-AI/skyvern(?:\.git)?(?:/|$)", re.IGNORECASE)
+
+
+def sanitize_remote_url(url: str) -> str:
+    """Strip credentials from HTTPS remotes before identity matching."""
+    return re.sub(r"https://[^@]+@", "https://", url)
 
 
 def run_git(repo_root: Path, args: Sequence[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -75,9 +81,12 @@ def remotes(repo_root: Path) -> dict[str, str]:
 def origin_matches_fork(repo_root: Path) -> bool:
     """Return True when origin points at smc-copilot/skyvern."""
     url = remotes(repo_root).get("origin", "")
-    # Tokens in the URL must not leak into reports; match path only.
-    sanitized = re.sub(r"https://[^@]+@", "https://", url)
-    return bool(FORK_IDENTITY_RE.search(sanitized))
+    return bool(FORK_IDENTITY_RE.search(sanitize_remote_url(url)))
+
+
+def remote_matches_upstream(url: str) -> bool:
+    """Return True for HTTPS or SSH remotes that point at Skyvern-AI/skyvern."""
+    return bool(UPSTREAM_IDENTITY_RE.search(sanitize_remote_url(url)))
 
 
 def assert_fork_identity(repo_root: Path) -> None:

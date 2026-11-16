@@ -72,27 +72,69 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-docker compose \
-  -p skyvern-enterprise-pr00 \
-  --env-file .env.enterprise \
-  --env-file .enterprise-data/build.env \
-  -f docker-compose.yml \
-  -f docker-compose.enterprise.yml \
-  up -d
+enterprise_compose() {
+  docker compose \
+    -p skyvern-enterprise-pr00 \
+    --env-file .env.enterprise \
+    --env-file .enterprise-data/build.env \
+    -f docker-compose.yml \
+    -f docker-compose.enterprise.yml \
+    "$@"
+}
+
+wait_for_cmd() {
+  local timeout_s="$1"
+  shift
+  local start now
+  start="$(date +%s)"
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    now="$(date +%s)"
+    if (( now - start >= timeout_s )); then
+      return 1
+    fi
+    sleep 2
+  done
+}
+
+http_is_200() {
+  local url="$1"
+  local dest="$2"
+  local code
+  code="$(curl -sS -D "${dest}.hdr" -o "${dest}.body" -w '%{http_code}' "$url" || true)"
+  {
+    cat "${dest}.hdr" 2>/dev/null || true
+    echo
+    cat "${dest}.body" 2>/dev/null || true
+    printf '\nhttp_status=%s\n' "${code:-000}"
+  } > "$dest"
+  [[ "$code" == "200" ]]
+}
+
+postgres_is_ready() {
+  docker compose -p skyvern-enterprise-pr00 exec -T postgres \
+    pg_isready -U "${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}" -d "${ENTERPRISE_POSTGRES_DB:-skyvern_pr00}"
+}
 
 cleanup_on_fail() {
   local code="$1"
   echo "$code" >&2
-  docker compose -p skyvern-enterprise-pr00 -f docker-compose.yml -f docker-compose.enterprise.yml logs > "$EVIDENCE/smoke-logs/compose.log" 2>&1 || true
+  mkdir -p "$EVIDENCE/smoke-logs"
+  enterprise_compose logs > "$EVIDENCE/smoke-logs/compose.log" 2>&1 || true
+  enterprise_compose down --remove-orphans >/dev/null 2>&1 || true
 }
+
+enterprise_compose up -d
 
 mkdir -p "$EVIDENCE/smoke-logs"
 
-if ! docker compose -p skyvern-enterprise-pr00 exec -T postgres pg_isready -U "${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}" -d "${ENTERPRISE_POSTGRES_DB:-skyvern_pr00}"; then
+if ! wait_for_cmd 90 postgres_is_ready; then
   cleanup_on_fail "SMOKE_DB_NOT_READY"
   exit 1
 fi
-docker compose -p skyvern-enterprise-pr00 exec -T postgres pg_isready -U "${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}" -d "${ENTERPRISE_POSTGRES_DB:-skyvern_pr00}" > "$EVIDENCE/postgres-health.txt"
+postgres_is_ready > "$EVIDENCE/postgres-health.txt"
 
 alembic_out="$(docker compose -p skyvern-enterprise-pr00 exec -T postgres \
   psql -U "${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}" -d "${ENTERPRISE_POSTGRES_DB:-skyvern_pr00}" -tAc \
@@ -103,17 +145,16 @@ if [[ -z "${alembic_out// }" ]]; then
   exit 1
 fi
 
-api_code="$(curl -sS -o "$EVIDENCE/api-heartbeat.txt" -w '%{http_code}' "http://127.0.0.1:${ENTERPRISE_API_PORT:-18000}/api/v1/heartbeat" || true)"
-printf 'http_status=%s\n' "$api_code" >> "$EVIDENCE/api-heartbeat.txt"
-if [[ "$api_code" != "200" ]]; then
+if ! wait_for_cmd 240 http_is_200 \
+  "http://127.0.0.1:${ENTERPRISE_API_PORT:-18000}/api/v1/heartbeat" \
+  "$EVIDENCE/api-heartbeat.txt"; then
   cleanup_on_fail "SMOKE_API_FAILED"
   exit 1
 fi
 
-ui_headers="$EVIDENCE/dashboard-http.txt"
-ui_code="$(curl -sS -D "$ui_headers" -o /dev/null -w '%{http_code}' "http://127.0.0.1:${ENTERPRISE_UI_PORT:-18080}/" || true)"
-printf '\nhttp_status=%s\n' "$ui_code" >> "$ui_headers"
-if [[ "$ui_code" != "200" ]]; then
+if ! wait_for_cmd 180 http_is_200 \
+  "http://127.0.0.1:${ENTERPRISE_UI_PORT:-18080}/" \
+  "$EVIDENCE/dashboard-http.txt"; then
   cleanup_on_fail "SMOKE_UI_FAILED"
   exit 1
 fi

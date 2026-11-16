@@ -27,9 +27,11 @@ from git_state import (
     assert_clean_worktree_for_sync,
     assert_fork_identity,
     porcelain_status,
+    remote_matches_upstream,
     remotes,
     repo_root_from_cwd,
     run_git,
+    sanitize_remote_url,
     source_commit,
 )
 from project_version import read_project_version
@@ -68,12 +70,11 @@ def collect_baseline(repo_root: Path, *, require_clean_for_sync: bool) -> dict[s
     assert_fork_identity(repo_root)
     if require_clean_for_sync:
         assert_clean_worktree_for_sync(repo_root)
-    upstream_urls = {name: url for name, url in remotes(repo_root).items() if "Skyvern-AI/skyvern" in url}
-    if "upstream" in remotes(repo_root) and remotes(repo_root)["upstream"] not in {
-        UPSTREAM_REMOTE_URL,
-        UPSTREAM_REMOTE_URL.removesuffix(".git"),
-    }:
-        raise EnterpriseError("UPSTREAM_REMOTE_INVALID", remotes(repo_root)["upstream"])
+    remote_map = remotes(repo_root)
+    upstream_urls = {name: url for name, url in remote_map.items() if remote_matches_upstream(url)}
+    named_upstream = remote_map.get("upstream")
+    if named_upstream is not None and not remote_matches_upstream(named_upstream):
+        raise EnterpriseError("UPSTREAM_REMOTE_INVALID", sanitize_remote_url(named_upstream))
     upstream_head = ls_remote_main(UPSTREAM_REMOTE_URL)
     drifted = upstream_head != PINNED_UPSTREAM_SHA
     pin_is_ancestor = merge_base_with_pin(repo_root) == PINNED_UPSTREAM_SHA

@@ -23,6 +23,26 @@ def test_enterprise_override_uses_local_images_and_isolated_paths() -> None:
     assert findings["ui_image_repository"] == "local/smc-copilot-skyvern-ui"
 
 
+def test_enterprise_compose_overrides_default_host_ports_and_mounts() -> None:
+    text = (REPO_ROOT / "docker-compose.enterprise.yml").read_text(encoding="utf-8")
+    assert text.count("ports: !override") >= 2
+    assert text.count("env_file: !override") >= 2
+    assert text.count("volumes: !override") >= 3
+    assert "8000:8000" not in text
+    assert "6080:6080" not in text
+    assert "8080:8080" not in text
+    assert "9090:9090" not in text
+
+
+def test_upstream_remote_accepts_ssh_and_https() -> None:
+    assert git_state.remote_matches_upstream("https://github.com/Skyvern-AI/skyvern.git")
+    assert git_state.remote_matches_upstream("https://github.com/Skyvern-AI/skyvern")
+    assert git_state.remote_matches_upstream("git@github.com:Skyvern-AI/skyvern.git")
+    assert git_state.remote_matches_upstream("ssh://git@github.com/Skyvern-AI/skyvern.git")
+    assert not git_state.remote_matches_upstream("git@github.com:other/skyvern.git")
+    assert not git_state.remote_matches_upstream("https://github.com/smc-copilot/skyvern.git")
+
+
 def test_default_compose_keeps_official_images_and_env_defaults() -> None:
     compose_static.assert_default_compose_unmodified_images(REPO_ROOT)
     text = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")

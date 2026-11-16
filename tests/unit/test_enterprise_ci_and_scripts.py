@@ -39,6 +39,15 @@ def test_stop_smoke_does_not_use_volumes_flag() -> None:
     assert "system prune" not in commands
 
 
+def test_stop_smoke_interpolates_env_before_down() -> None:
+    text = (REPO_ROOT / "scripts" / "enterprise" / "stop_smoke.sh").read_text(encoding="utf-8")
+    assert "--env-file .env.enterprise" in text
+    assert "--env-file .enterprise-data/build.env" in text
+    assert "source .env.enterprise" in text
+    assert "SKYVERN_BUILD_TAG:-stop-placeholder" in text
+    assert "ENTERPRISE_POSTGRES_PASSWORD:-stop-placeholder" in text
+
+
 def test_build_images_does_not_push() -> None:
     text = (REPO_ROOT / "scripts" / "enterprise" / "build_images.sh").read_text(encoding="utf-8")
     assert "docker push" not in text
@@ -65,3 +74,13 @@ def test_smoke_refuses_missing_images_and_placeholder_password() -> None:
     assert "BUILD_FAILED" in text
     assert "SMOKE_DB_SECRET_MISSING" in text
     assert "down -v" not in "\n".join(_command_lines(REPO_ROOT / "scripts" / "enterprise" / "smoke_test.sh"))
+
+
+def test_smoke_waits_for_postgres_api_and_ui() -> None:
+    text = (REPO_ROOT / "scripts" / "enterprise" / "smoke_test.sh").read_text(encoding="utf-8")
+    assert "wait_for_cmd" in text
+    assert "http_is_200" in text
+    assert "postgres_is_ready" in text
+    assert "SMOKE_UI_FAILED" in text
+    assert "SMOKE_API_FAILED" in text
+    assert "down --remove-orphans" in text

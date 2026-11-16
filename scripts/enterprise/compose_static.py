@@ -73,6 +73,18 @@ def assert_enterprise_override(repo_root: Path) -> dict[str, Any]:
         raise EnterpriseError("PORT_CONFLICT", "enterprise artifact port missing")
     if str(ENTERPRISE_VNC_PORT_DEFAULT) not in text:
         raise EnterpriseError("PORT_CONFLICT", "enterprise VNC port missing")
+    if text.count("ports: !override") < 2:
+        raise EnterpriseError(
+            "PORT_CONFLICT",
+            "enterprise ports must use !override so default 8000/6080/8080/9090 are not appended",
+        )
+    if text.count("env_file: !override") < 2:
+        raise EnterpriseError("ENTERPRISE_ENV_MISSING", "enterprise env_file must use !override")
+    if text.count("volumes: !override") < 3:
+        raise EnterpriseError("PRODUCTION_VOLUME_REFERENCE", "enterprise volumes must use !override")
+    for host_map in ("8000:8000", "6080:6080", "8080:8080", "9090:9090"):
+        if host_map in text:
+            raise EnterpriseError("PORT_CONFLICT", f"default host port mapping {host_map} must not appear in override")
     for marker in PRODUCTION_VOLUME_MARKERS:
         # `./artifacts` etc. must not appear as host mount sources in the override.
         pattern = rf"-\s*{re.escape(marker)}:"
