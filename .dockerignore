@@ -21,6 +21,7 @@
 # Skyvern
 docs
 images
+.enterprise-data/
 
 # Front
 skyvern-frontend/.env*

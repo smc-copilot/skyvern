@@ -19,6 +19,7 @@ jobs:
     # 1. PR was merged (not just closed) OR manual dispatch
     # 2. PR is NOT a sync PR from cloud (prevents infinite sync loops)
     if: >
+      github.repository == 'Skyvern-AI/skyvern' &&
       (github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch') && !contains(join(github.event.pull_request.labels.*.name, ','), 'sync') && !startsWith(github.event.pull_request.head.ref, 'repo-sync/')
 
     steps:

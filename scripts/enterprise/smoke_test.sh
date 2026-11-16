@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# Start the isolated PR-00 Compose project and check Postgres / API / UI.
+# Never connects to production volumes. Never runs docker compose down -v.
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+EVIDENCE=".enterprise-data/evidence/pr-00"
+mkdir -p "$EVIDENCE" .enterprise-data/{postgres,artifacts,videos,har,log,downloads,browser_sessions,credential_vault,.skyvern}
+
+if [[ ! -f .env.enterprise || ! -f skyvern-frontend/.env.enterprise ]]; then
+  echo "ENTERPRISE_ENV_MISSING" >&2
+  exit 1
+fi
+
+if grep -Eq '^ENTERPRISE_POSTGRES_PASSWORD=(replace-with-a-random-alphanumeric-value)?[[:space:]]*$' .env.enterprise; then
+  echo "SMOKE_DB_SECRET_MISSING" >&2
+  echo "Set ENTERPRISE_POSTGRES_PASSWORD in .env.enterprise to a random alphanumeric value" >&2
+  exit 1
+fi
+
+if [[ ! -f .enterprise-data/build.env || ! -f .enterprise-data/build-metadata.json ]]; then
+  echo "BUILD_TAG_MISSING" >&2
+  echo "Run scripts/enterprise/build_images.sh first" >&2
+  exit 1
+fi
+
+# shellcheck disable=SC1091
+set -a
+source .enterprise-data/build.env
+source .env.enterprise
+set +a
+
+python3 scripts/enterprise/validate_compose.py --require-resolved-config --output-dir "$EVIDENCE"
+
+if ! python3 - <<'PY'
+import json
+from pathlib import Path
+meta = json.loads(Path(".enterprise-data/build-metadata.json").read_text())
+if not meta.get("backend_image_digest") or not meta.get("ui_image_digest"):
+    raise SystemExit("BUILD_FAILED")
+PY
+then
+  echo "BUILD_FAILED" >&2
+  echo "Refusing to start Smoke Stack without image digests" >&2
+  exit 1
+fi
+
+check_port() {
+  local port="$1"
+  python3 - "$port" <<'PY'
+import socket, sys
+port = int(sys.argv[1])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    sock.bind(("0.0.0.0", port))
+except OSError:
+    print(f"PORT_CONFLICT port {port} is already bound", file=sys.stderr)
+    sys.exit(1)
+finally:
+    sock.close()
+PY
+}
+
+check_port "${ENTERPRISE_API_PORT:-18000}"
+check_port "${ENTERPRISE_VNC_PORT:-16080}"
+check_port "${ENTERPRISE_UI_PORT:-18080}"
+check_port "${ENTERPRISE_ARTIFACT_PORT:-19090}"
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "DOCKER_STATE_UNAVAILABLE" >&2
+  exit 1
+fi
+
+docker compose \
+  -p skyvern-enterprise-pr00 \
+  --env-file .env.enterprise \
+  --env-file .enterprise-data/build.env \
+  -f docker-compose.yml \
+  -f docker-compose.enterprise.yml \
+  up -d
+
+cleanup_on_fail() {
+  local code="$1"
+  echo "$code" >&2
+  docker compose -p skyvern-enterprise-pr00 -f docker-compose.yml -f docker-compose.enterprise.yml logs > "$EVIDENCE/smoke-logs/compose.log" 2>&1 || true
+}
+
+mkdir -p "$EVIDENCE/smoke-logs"
+
+if ! docker compose -p skyvern-enterprise-pr00 exec -T postgres pg_isready -U "${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}" -d "${ENTERPRISE_POSTGRES_DB:-skyvern_pr00}"; then
+  cleanup_on_fail "SMOKE_DB_NOT_READY"
+  exit 1
+fi
+docker compose -p skyvern-enterprise-pr00 exec -T postgres pg_isready -U "${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}" -d "${ENTERPRISE_POSTGRES_DB:-skyvern_pr00}" > "$EVIDENCE/postgres-health.txt"
+
+alembic_out="$(docker compose -p skyvern-enterprise-pr00 exec -T postgres \
+  psql -U "${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}" -d "${ENTERPRISE_POSTGRES_DB:-skyvern_pr00}" -tAc \
+  "SELECT version_num FROM alembic_version;" || true)"
+printf '%s\n' "$alembic_out" > "$EVIDENCE/alembic-version.txt"
+if [[ -z "${alembic_out// }" ]]; then
+  cleanup_on_fail "SMOKE_MIGRATION_FAILED"
+  exit 1
+fi
+
+api_code="$(curl -sS -o "$EVIDENCE/api-heartbeat.txt" -w '%{http_code}' "http://127.0.0.1:${ENTERPRISE_API_PORT:-18000}/api/v1/heartbeat" || true)"
+printf 'http_status=%s\n' "$api_code" >> "$EVIDENCE/api-heartbeat.txt"
+if [[ "$api_code" != "200" ]]; then
+  cleanup_on_fail "SMOKE_API_FAILED"
+  exit 1
+fi
+
+ui_headers="$EVIDENCE/dashboard-http.txt"
+ui_code="$(curl -sS -D "$ui_headers" -o /dev/null -w '%{http_code}' "http://127.0.0.1:${ENTERPRISE_UI_PORT:-18080}/" || true)"
+printf '\nhttp_status=%s\n' "$ui_code" >> "$ui_headers"
+if [[ "$ui_code" != "200" ]]; then
+  cleanup_on_fail "SMOKE_UI_FAILED"
+  exit 1
+fi
+
+echo "SMOKE_OK"

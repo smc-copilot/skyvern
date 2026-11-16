@@ -1,0 +1,59 @@
+{
+  "repository": "smc-copilot/skyvern",
+  "branch": "cursor/pr-00-enterprise-source-build-f090",
+  "environment": "cursor-cloud-agent",
+  "prd_status": "APPROVED_FOR_PLAN",
+  "formal_plan_readiness": "NOT_MET",
+  "release_gate": "NOT_PASS",
+  "secret_field_count": 0,
+  "commands": {
+    "unit_tests": {
+      "command": "python3 -m pytest --noconftest tests/unit/test_enterprise_build_metadata.py tests/unit/test_upstream_workflow_guards.py tests/unit/test_enterprise_compose.py tests/unit/test_enterprise_sec_ignore.py tests/unit/test_enterprise_ci_and_scripts.py -q",
+      "exit_code": 0,
+      "result": "21 passed"
+    },
+    "workflow_guards": {
+      "command": "python3 scripts/enterprise/check_upstream_workflow_guards.py",
+      "exit_code": 0,
+      "guarded_workflow_job_count": 7,
+      "missing_guard_count": 0
+    },
+    "upstream_baseline": {
+      "command": "python3 scripts/enterprise/verify_upstream_baseline.py",
+      "exit_code": 1,
+      "error_code": "UPSTREAM_BASELINE_DRIFT",
+      "upstream_main_sha": "e87b6910bd6ddaea6ac1e1d1e4beb455b24d93d6",
+      "pinned_upstream_sha": "d04ca9c7fd9925216b3dcdc687203e9ee79de351",
+      "sync_performed": false
+    },
+    "sync_on_dirty": {
+      "command": "python3 scripts/enterprise/verify_upstream_baseline.py --require-clean-for-sync",
+      "exit_code": 1,
+      "error_code": "WORKTREE_DIRTY",
+      "note": "Observed while the feature files were still uncommitted. After commit, worktree is clean unless new edits exist."
+    }
+  },
+  "acceptances": [
+    {"id": "A-STATE-001", "status": "PASS", "note": "preflight.py ran; repository=smc-copilot/skyvern; docker_state_report records DOCKER_STATE_UNAVAILABLE"},
+    {"id": "A-STATE-002", "status": "PASS", "note": "Dirty sync entry exits WORKTREE_DIRTY; unit test covers tmp dirty repo"},
+    {"id": "A-BASE-001", "status": "PASS", "note": "Pinned SHA exists and pyproject version is 1.0.57; not used as current HEAD"},
+    {"id": "A-BASE-002", "status": "PASS", "note": "No unique local commits vs origin/main before this PR; no reset/force-push"},
+    {"id": "A-BASE-003", "status": "PASS", "note": "Drift gate fired; SOURCE_SYNCED blocked"},
+    {"id": "A-COMPOSE-001", "status": "BLOCKED", "note": "Static override checks PASS; docker compose config SOT unavailable (no Docker)"},
+    {"id": "A-COMPOSE-002", "status": "BLOCKED", "note": "Image revision labels require built images"},
+    {"id": "A-COMPOSE-003", "status": "BLOCKED", "note": "Static isolation checks PASS; resolved compose/inspect BLOCKED without Docker. VNC oracle GAP-VNC-ORACLE"},
+    {"id": "A-BUILD-001", "status": "PASS", "note": "Unit tests generate schema-valid metadata; image digest remains null until build"},
+    {"id": "A-BUILD-002", "status": "PASS", "note": "Dirty metadata uses -dirty tag; release_eligible derived false"},
+    {"id": "A-SEC-001", "status": "PASS", "note": "git check-ignore matches enterprise env/data files; not tracked"},
+    {"id": "A-SEC-002", "status": "BLOCKED", "note": ".dockerignore lists .enterprise-data/; image filesystem inspect needs Docker"},
+    {"id": "A-CI-001", "status": "BLOCKED", "note": "enterprise-build.yml has push:false; GitHub job success pending PR CI"},
+    {"id": "A-CI-002", "status": "BLOCKED", "note": "GAP-CI-EXISTING-JOBS; static job names retained; runtime success pending PR CI"},
+    {"id": "A-WF-001", "status": "PASS", "note": "7 listed jobs contain github.repository == Skyvern-AI/skyvern"},
+    {"id": "A-WF-002", "status": "BLOCKED", "note": "Fork CI remaining active is pending GitHub Actions on this PR"},
+    {"id": "A-SMOKE-001", "status": "BLOCKED", "note": "DOCKER_STATE_UNAVAILABLE; not SKIPPED-as-PASS"},
+    {"id": "A-SMOKE-002", "status": "BLOCKED", "note": "Dashboard GET / not executed; no screenshot generated"},
+    {"id": "A-SMOKE-003", "status": "BLOCKED", "note": "GAP-PRODUCTION-IDENTITY; user production snapshot UNKNOWN"},
+    {"id": "A-DOC-001", "status": "BLOCKED", "note": "Docs match scripts; end-to-end documented run needs Docker"},
+    {"id": "A-ROLLBACK-001", "status": "BLOCKED", "note": "stop_smoke.sh has no volumes flag; live stop not executed without a stack"}
+  ]
+}

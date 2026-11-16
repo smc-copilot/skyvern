@@ -112,6 +112,8 @@ Use this option if you want everything containerized (Postgres, API, UI) and don
    ```
 5. Open http://localhost:8080
 
+Default `docker compose up` still uses the official published images. Fork maintainers who need an isolated source-build smoke stack (local Backend/UI images, independent PostgreSQL, no production volumes) should follow [docs/enterprise/pr00-source-build-baseline.md](docs/enterprise/pr00-source-build-baseline.md). That path does not replace the commands above.
+
 ### Troubleshooting
 
 **`(sqlite3.OperationalError) table organizations already exists`** — You hit a known bug in `pip install skyvern==1.0.31`. Fix:

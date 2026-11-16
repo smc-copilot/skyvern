@@ -28,7 +28,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file:
-      - .env
+      - ${SKYVERN_BACKEND_ENV_FILE:-.env}
     # comment out if you want to externally call skyvern API
     ports:
       - 8000:8000
@@ -176,7 +176,7 @@ services:
     # (loaded via env_file). CDP streaming is inline so local livestreaming is
     # enabled even if an older frontend .env is present.
     env_file:
-      - skyvern-frontend/.env
+      - ${SKYVERN_FRONTEND_ENV_FILE:-skyvern-frontend/.env}
     environment:
       - VITE_BROWSER_STREAMING_MODE=${VITE_BROWSER_STREAMING_MODE:-cdp}
     #  - VITE_ENABLE_CODE_BLOCK=true
