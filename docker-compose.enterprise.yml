@@ -2,10 +2,9 @@
 # Use with: docker compose -p skyvern-enterprise-pr00 -f docker-compose.yml -f docker-compose.enterprise.yml
 # This file must not change default docker-compose.yml behavior when it is not included.
 name: skyvern-enterprise-pr00
-
 services:
   postgres:
-    # Sequence fields append on merge; override so default credentials/paths are not kept.
+    # Host port 5432 stays unpublished. Sequence fields append on merge, so override defaults.
     environment: !override
       - PGDATA=/var/lib/postgresql/data/pgdata
       - POSTGRES_USER=${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}
@@ -18,8 +17,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    # Host port 5432 must stay unpublished.
-
   skyvern:
     image: local/smc-copilot-skyvern-backend:${SKYVERN_BUILD_TAG:?SKYVERN_BUILD_TAG is required}
     build:
@@ -47,7 +44,6 @@ services:
     environment:
       - DATABASE_STRING=postgresql+psycopg://${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}:${ENTERPRISE_POSTGRES_PASSWORD}@postgres:5432/${ENTERPRISE_POSTGRES_DB:-skyvern_pr00}
       - ENABLE_CODE_BLOCK=true
-
   skyvern-ui:
     image: local/smc-copilot-skyvern-ui:${SKYVERN_BUILD_TAG:?SKYVERN_BUILD_TAG is required}
     build:

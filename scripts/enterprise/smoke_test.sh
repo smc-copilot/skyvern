@@ -25,9 +25,10 @@ if [[ ! -f .enterprise-data/build.env || ! -f .enterprise-data/build-metadata.js
   exit 1
 fi
 
-# shellcheck disable=SC1091
 set -a
+# shellcheck disable=SC1091
 source .enterprise-data/build.env
+# shellcheck disable=SC1091
 source .env.enterprise
 set +a
 

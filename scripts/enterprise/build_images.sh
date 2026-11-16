@@ -26,8 +26,8 @@ fi
 
 python3 scripts/enterprise/build_metadata.py --output-dir .enterprise-data
 
-# shellcheck disable=SC1091
 set -a
+# shellcheck disable=SC1091
 source .enterprise-data/build.env
 set +a
 
