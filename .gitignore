@@ -182,6 +182,11 @@ temp/
 .skyvern/
 **/secrets*.toml
 
+# PR-00 isolated env and smoke data (never commit secrets or test volumes)
+.env.enterprise
+skyvern-frontend/.env.enterprise
+.enterprise-data/
+
 ## Frontend
 node_modules
 .env.backup

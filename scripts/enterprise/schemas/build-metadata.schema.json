@@ -1,0 +1,74 @@
+{
+  "$id": "ewdac://skyvern/build-metadata/1.1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PR-00 build metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "source_commit",
+    "source_version",
+    "source_dirty",
+    "build_tag",
+    "ui_app_version",
+    "built_at_utc",
+    "backend_image",
+    "ui_image",
+    "backend_image_digest",
+    "ui_image_digest",
+    "metadata_state",
+    "release_eligible"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.1"
+    },
+    "repository": {
+      "const": "smc-copilot/skyvern"
+    },
+    "source_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "source_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_dirty": {
+      "type": "boolean"
+    },
+    "build_tag": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ui_app_version": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "built_at_utc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "backend_image": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ui_image": {
+      "type": "string",
+      "minLength": 1
+    },
+    "backend_image_digest": {
+      "type": ["string", "null"]
+    },
+    "ui_image_digest": {
+      "type": ["string", "null"]
+    },
+    "metadata_state": {
+      "enum": ["draft", "acceptance"]
+    },
+    "release_eligible": {
+      "type": "boolean"
+    }
+  }
+}

@@ -68,6 +68,8 @@ jobs:
         if: steps.cache-venv.outputs.cache-hit == 'true'
         run: |
           uv sync --extra server --group dev
+      - name: Check upstream workflow Fork guards
+        run: python scripts/enterprise/check_upstream_workflow_guards.py
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:

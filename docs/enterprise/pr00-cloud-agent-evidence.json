@@ -1,0 +1,89 @@
+{
+  "schema_version": "2.0",
+  "evidence_policy": {
+    "raw_authority": ".enterprise-data/evidence/pr-00",
+    "managed_summary": "docs/enterprise/pr00-cloud-agent-evidence.json",
+    "raw_not_git_tracked": true,
+    "import_is_not_authority": true
+  },
+  "history": [
+    {
+      "round": "2026-11-17-isolated-docker",
+      "layer": "managed_summary",
+      "parent_commit": "20e3cd2b3eb9235267026fd2fd8db6850abbcc93",
+      "containing_commit": "98e5106ac63dfd38a03a450209b5d1046c027fba",
+      "github_actions_for_containing_commit": "never_queued_zero_workflow_runs",
+      "note": "Isolated VM smoke/build at source 20e3cd2; summary committed as 98e5106ac. That SHA's GitHub Actions never ran. Do not treat later SHAs as proof that 98e5106ac passed. Dashboard GET / 200 was not a VNC oracle.",
+      "raw_authority": ".enterprise-data/evidence/pr-00",
+      "commands": {
+        "unit_tests": {
+          "command": "python3 -m pytest --noconftest tests/unit/test_enterprise_*.py -q",
+          "exit_code": 0,
+          "result": "24 passed"
+        },
+        "smoke_test": {
+          "command": "scripts/enterprise/smoke_test.sh",
+          "exit_code": 0,
+          "result": "SMOKE_OK",
+          "api_heartbeat": 200,
+          "dashboard_get": 200,
+          "vnc_oracle": "not_run"
+        }
+      },
+      "acceptances": [
+        {"id": "A-SMOKE-001", "status": "PASS", "note": "Isolated VM only; postgres/API. Not GitHub Actions."},
+        {"id": "A-SMOKE-002", "status": "PASS", "note": "GET / 200 only. Not Organization. Not VNC."},
+        {"id": "A-COMPOSE-003", "status": "PASS", "note": "Published ports only; VNC handshake was not yet the oracle."}
+      ]
+    }
+  ],
+  "current": {
+    "round": "2026-11-17-semantic-clarification",
+    "layer": "managed_summary",
+    "raw_authority": ".enterprise-data/evidence/pr-00",
+    "parent_commit": "98e5106ac63dfd38a03a450209b5d1046c027fba",
+    "containing_commit_note": "Identified by the Git commit that contains this file. That commit does not prove 98e5106ac GitHub Actions passed.",
+    "github_actions_for_98e5106ac": "never_queued_zero_workflow_runs",
+    "clarifications_closed": [
+      "GAP-EVIDENCE-PATH",
+      "GAP-DIRTY-BOUNDARY",
+      "GAP-BUILD-STATE-MACHINE",
+      "GAP-VNC-ORACLE",
+      "GAP-CI-EXISTING-JOBS"
+    ],
+    "still_open": [
+      "GAP-DASHBOARD-ORG",
+      "GAP-PRODUCTION-IDENTITY",
+      "GAP-WF-EXTRA",
+      "UPSTREAM_BASELINE_DRIFT"
+    ],
+    "release_gate": "NOT_PASS",
+    "formal_plan_readiness": "NOT_MET",
+    "commands": {
+      "unit_tests": {
+        "command": "python3 -m pytest --noconftest tests/unit/test_enterprise_*.py tests/unit/test_upstream_workflow_guards.py -q",
+        "exit_code": 0,
+        "result": "44 passed"
+      },
+      "evidence_policy": {
+        "command": "python3 scripts/enterprise/evidence_policy.py",
+        "exit_code": 0
+      },
+      "protected_ci_jobs": {
+        "command": "python3 scripts/enterprise/check_protected_ci_jobs.py",
+        "exit_code": 0,
+        "existing_protected_job_ids": ["pre-commit", "pytest", "test", "fe-lint-build", "pip-package-smoke"]
+      },
+      "vnc_oracle_live_stack_down": {
+        "command": "python3 scripts/enterprise/vnc_oracle.py --host 127.0.0.1 --port 16080 --timeout 1",
+        "exit_code": 1,
+        "error_code": "VNC_PORT_CLOSED",
+        "note": "Isolation stack is stopped this round. Closed-port failure is the live negative case. Fake-server unit tests cover 101+RFB PASS and HTTP 200 FAIL. Not copied from 20e3cd2 smoke."
+      },
+      "github_actions_98e5106ac": {
+        "workflow_runs": 0,
+        "note": "Never queued. This managed summary does not claim that SHA passed CI."
+      }
+    }
+  }
+}

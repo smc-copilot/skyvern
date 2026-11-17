@@ -1,0 +1,68 @@
+# PR-00 isolated source-build override for smc-copilot/skyvern.
+# Use with: docker compose -p skyvern-enterprise-pr00 -f docker-compose.yml -f docker-compose.enterprise.yml
+# This file must not change default docker-compose.yml behavior when it is not included.
+name: skyvern-enterprise-pr00
+services:
+  postgres:
+    # Host port 5432 stays unpublished. Sequence fields append on merge, so override defaults.
+    environment: !override
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_USER=${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}
+      - POSTGRES_PASSWORD=${ENTERPRISE_POSTGRES_PASSWORD:?ENTERPRISE_POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${ENTERPRISE_POSTGRES_DB:-skyvern_pr00}
+    volumes: !override
+      - ./.enterprise-data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  skyvern:
+    image: local/smc-copilot-skyvern-backend:${SKYVERN_BUILD_TAG:?SKYVERN_BUILD_TAG is required}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      labels:
+        org.opencontainers.image.source: "https://github.com/smc-copilot/skyvern"
+        org.opencontainers.image.revision: "${SKYVERN_BUILD_SHA}"
+        org.opencontainers.image.version: "${SKYVERN_SOURCE_VERSION}"
+        io.smc-copilot.skyvern.source-dirty: "${SKYVERN_BUILD_DIRTY}"
+    env_file: !override
+      - ${SKYVERN_BACKEND_ENV_FILE:-.env.enterprise}
+    ports: !override
+      - "${ENTERPRISE_API_PORT:-18000}:8000"
+      - "${ENTERPRISE_VNC_PORT:-16080}:6080"
+    volumes: !override
+      - ./.enterprise-data/artifacts:/data/artifacts
+      - ./.enterprise-data/videos:/data/videos
+      - ./.enterprise-data/har:/data/har
+      - ./.enterprise-data/log:/data/log
+      - ./.enterprise-data/downloads:/data/downloads
+      - ./.enterprise-data/browser_sessions:/data/browser_sessions
+      - ./.enterprise-data/credential_vault:/data/credential_vault
+      - ./.enterprise-data/.skyvern:/app/.skyvern
+    environment:
+      - DATABASE_STRING=postgresql+psycopg://${ENTERPRISE_POSTGRES_USER:-skyvern_pr00}:${ENTERPRISE_POSTGRES_PASSWORD}@postgres:5432/${ENTERPRISE_POSTGRES_DB:-skyvern_pr00}
+      - ENABLE_CODE_BLOCK=true
+  skyvern-ui:
+    image: local/smc-copilot-skyvern-ui:${SKYVERN_BUILD_TAG:?SKYVERN_BUILD_TAG is required}
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+      args:
+        APP_VERSION: ${SKYVERN_BUILD_SHA}
+      labels:
+        org.opencontainers.image.source: "https://github.com/smc-copilot/skyvern"
+        org.opencontainers.image.revision: "${SKYVERN_BUILD_SHA}"
+        org.opencontainers.image.version: "${SKYVERN_SOURCE_VERSION}"
+        io.smc-copilot.skyvern.source-dirty: "${SKYVERN_BUILD_DIRTY}"
+    env_file: !override
+      - ${SKYVERN_FRONTEND_ENV_FILE:-skyvern-frontend/.env.enterprise}
+    ports: !override
+      - "${ENTERPRISE_UI_PORT:-18080}:8080"
+      - "${ENTERPRISE_ARTIFACT_PORT:-19090}:9090"
+    volumes: !override
+      - ./.enterprise-data/artifacts:/data/artifacts
+      - ./.enterprise-data/videos:/data/videos
+      - ./.enterprise-data/har:/data/har
+      - ./.enterprise-data/.skyvern:/app/.skyvern

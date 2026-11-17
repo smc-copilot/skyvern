@@ -1,0 +1,101 @@
+{
+  "$id": "ewdac://skyvern/protected-ci-jobs/1.0",
+  "title": "PR-00 protected CI job inventory",
+  "clarification": "2026-11-17 GAP-CI-EXISTING-JOBS",
+  "notes": [
+    "Inventory is workflow path + job_id, not GitHub check-run display names.",
+    "Do not require check-run count 16 to equal a previous SHA.",
+    "Matrix axes (pytest shards, pip python-version) are not extra job IDs.",
+    "expected_skip_on_fork_pr skipped conclusions are not failures.",
+    "path_filter_may_omit means a missing run is not a failure when those paths are unchanged.",
+    "GAP-WF-EXTRA workflows remain out of scope and are not auto-guarded here."
+  ],
+  "jobs": [
+    {
+      "class": "existing_protected",
+      "workflow": ".github/workflows/ci.yml",
+      "job_id": "pre-commit",
+      "on_pull_request": true,
+      "expected_skip_on_fork_pr": false,
+      "path_filter_may_omit": false,
+      "skip_semantics": null
+    },
+    {
+      "class": "existing_protected",
+      "workflow": ".github/workflows/ci.yml",
+      "job_id": "pytest",
+      "on_pull_request": true,
+      "expected_skip_on_fork_pr": false,
+      "path_filter_may_omit": false,
+      "matrix": "shard",
+      "skip_semantics": null
+    },
+    {
+      "class": "existing_protected",
+      "workflow": ".github/workflows/ci.yml",
+      "job_id": "test",
+      "on_pull_request": true,
+      "expected_skip_on_fork_pr": false,
+      "path_filter_may_omit": false,
+      "skip_semantics": "if always(); aggregator over pre-commit and pytest; skipped is not expected"
+    },
+    {
+      "class": "existing_protected",
+      "workflow": ".github/workflows/ci.yml",
+      "job_id": "fe-lint-build",
+      "on_pull_request": true,
+      "expected_skip_on_fork_pr": false,
+      "path_filter_may_omit": false,
+      "skip_semantics": null
+    },
+    {
+      "class": "existing_protected",
+      "workflow": ".github/workflows/ci.yml",
+      "job_id": "pip-package-smoke",
+      "on_pull_request": true,
+      "expected_skip_on_fork_pr": false,
+      "path_filter_may_omit": false,
+      "matrix": "python-version",
+      "skip_semantics": null
+    },
+    {
+      "class": "pr00_added",
+      "workflow": ".github/workflows/enterprise-build.yml",
+      "job_id": "backend-build",
+      "on_pull_request": true,
+      "expected_skip_on_fork_pr": false,
+      "path_filter_may_omit": false,
+      "push": false,
+      "skip_semantics": null
+    },
+    {
+      "class": "pr00_added",
+      "workflow": ".github/workflows/enterprise-build.yml",
+      "job_id": "ui-build",
+      "on_pull_request": true,
+      "expected_skip_on_fork_pr": false,
+      "path_filter_may_omit": false,
+      "push": false,
+      "skip_semantics": null
+    },
+    {
+      "class": "expected_skip_on_fork_pr",
+      "workflow": ".github/workflows/auto-merge-sync.yml",
+      "job_id": "auto-merge",
+      "on_pull_request": true,
+      "expected_skip_on_fork_pr": true,
+      "path_filter_may_omit": false,
+      "skip_semantics": "if github.repository == 'Skyvern-AI/skyvern' ...; skip on smc-copilot/skyvern is required, not a failure"
+    },
+    {
+      "class": "path_filtered_optional",
+      "workflow": ".github/workflows/zizmor.yml",
+      "job_id": "zizmor",
+      "on_pull_request": true,
+      "expected_skip_on_fork_pr": false,
+      "path_filter_may_omit": true,
+      "path_filter": ".github/workflows/**",
+      "skip_semantics": "missing run is OK when the SHA does not change workflow YAML"
+    }
+  ]
+}
