@@ -84,6 +84,8 @@ scripts/enterprise/stop_smoke.sh            # 停止容器与网络，保留 .en
 
 端口占用必须失败，脚本不会改端口。
 
+本隔离 VM 若为嵌套 Docker，且 `net.bridge.bridge-nf-call-iptables=1`，compose 容器互访 TCP 可能超时。这是该 VM 的 Docker 网络现状，不是生产宿主配置。仅在本隔离 VM 上可设为 `0` 后再跑 Smoke；**不要**在用户生产机上改 sysctl。脚本不会自动改内核参数。
+
 ## 回滚
 
 - 停止测试栈：`scripts/enterprise/stop_smoke.sh`
@@ -96,3 +98,5 @@ scripts/enterprise/stop_smoke.sh            # 停止容器与网络，保留 .en
 默认目录：`.enterprise-data/evidence/pr-00/`（不入库）。
 
 `SKIPPED` / `BLOCKED` 不等于 `PASS`。没有 Docker 时，镜像 Digest、容器文件系统、API/UI HTTP、页面截图必须标 **BLOCKED**，不得用「文件已创建」代替运行验收。
+
+本隔离 Cloud Agent VM（2026-11-17）已用官方 Docker CE 本地 daemon 完成 compose config、源码构建、Smoke、截图与 stop。那是本 VM 运行验收，不能代替用户生产现场。Golden Consumer 测试 Organization 步骤仍未定义，截图只证明 `GET /` 渲染了 Dashboard，不证明 Organization 操作。

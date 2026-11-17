@@ -1,59 +1,85 @@
 {
   "repository": "smc-copilot/skyvern",
   "branch": "cursor/pr-00-enterprise-source-build-f090",
-  "environment": "cursor-cloud-agent",
+  "environment": "cursor-cloud-agent-isolated-vm",
   "prd_status": "APPROVED_FOR_PLAN",
   "formal_plan_readiness": "NOT_MET",
   "release_gate": "NOT_PASS",
   "secret_field_count": 0,
+  "round": "2026-11-17-isolated-docker",
+  "docker": {
+    "engine": "local dockerd 29.10.0 on this VM unix socket",
+    "host_docker_sock_used": false,
+    "compose": "v5.7.1",
+    "icc_workaround": "set net.bridge.bridge-nf-call-iptables=0 on this nested VM only"
+  },
   "commands": {
     "unit_tests": {
-      "command": "python3 -m pytest --noconftest tests/unit/test_enterprise_build_metadata.py tests/unit/test_upstream_workflow_guards.py tests/unit/test_enterprise_compose.py tests/unit/test_enterprise_sec_ignore.py tests/unit/test_enterprise_ci_and_scripts.py -q",
+      "command": "python3 -m pytest --noconftest tests/unit/test_enterprise_*.py -q",
       "exit_code": 0,
-      "result": "21 passed"
+      "result": "24 passed"
     },
-    "workflow_guards": {
-      "command": "python3 scripts/enterprise/check_upstream_workflow_guards.py",
+    "compose_config": {
+      "command": "python3 scripts/enterprise/validate_compose.py --require-resolved-config",
       "exit_code": 0,
-      "guarded_workflow_job_count": 7,
-      "missing_guard_count": 0
+      "docker_compose_config_available": true,
+      "published_ports": [16080, 18000, 18080, 19090]
+    },
+    "build_images": {
+      "command": "scripts/enterprise/build_images.sh",
+      "exit_code": 0,
+      "backend_image": "local/smc-copilot-skyvern-backend:1.0.57-20e3cd2b3eb9",
+      "ui_image": "local/smc-copilot-skyvern-ui:1.0.57-20e3cd2b3eb9",
+      "backend_image_digest": "sha256:4ce1d14ff90beb11afa40c2ebebacbc08cd32a71add1b5eeedaf497e1ee2796d",
+      "ui_image_digest": "sha256:0e7a06e474ec7db16ca99d7a06e8ed7798894b1895bd8cbc7b3d8d8054738919",
+      "source_commit": "20e3cd2b3eb9235267026fd2fd8db6850abbcc93",
+      "source_dirty": false
+    },
+    "inspect_image_secrets": {
+      "command": "python3 scripts/enterprise/inspect_image_secrets.py",
+      "exit_code": 0,
+      "backend_forbidden_paths": [],
+      "ui_forbidden_paths": []
+    },
+    "smoke_test": {
+      "command": "scripts/enterprise/smoke_test.sh",
+      "exit_code": 0,
+      "result": "SMOKE_OK",
+      "api_heartbeat": 200,
+      "dashboard_get": 200,
+      "alembic_version": "4cbd8a8e6c47"
+    },
+    "stop_smoke": {
+      "command": "scripts/enterprise/stop_smoke.sh",
+      "exit_code": 0,
+      "result": "STOPPED data_retained=true"
     },
     "upstream_baseline": {
       "command": "python3 scripts/enterprise/verify_upstream_baseline.py",
-      "exit_code": 1,
-      "error_code": "UPSTREAM_BASELINE_DRIFT",
-      "upstream_main_sha": "e87b6910bd6ddaea6ac1e1d1e4beb455b24d93d6",
-      "pinned_upstream_sha": "d04ca9c7fd9925216b3dcdc687203e9ee79de351",
-      "sync_performed": false
-    },
-    "sync_on_dirty": {
-      "command": "python3 scripts/enterprise/verify_upstream_baseline.py --require-clean-for-sync",
-      "exit_code": 1,
-      "error_code": "WORKTREE_DIRTY",
-      "note": "Observed while the feature files were still uncommitted. After commit, worktree is clean unless new edits exist."
+      "note": "Still UPSTREAM_BASELINE_DRIFT; not re-run as a mutation. Pin unchanged."
     }
   },
   "acceptances": [
-    {"id": "A-STATE-001", "status": "PASS", "note": "preflight.py ran; repository=smc-copilot/skyvern; docker_state_report records DOCKER_STATE_UNAVAILABLE"},
-    {"id": "A-STATE-002", "status": "PASS", "note": "Dirty sync entry exits WORKTREE_DIRTY; unit test covers tmp dirty repo"},
-    {"id": "A-BASE-001", "status": "PASS", "note": "Pinned SHA exists and pyproject version is 1.0.57; not used as current HEAD"},
-    {"id": "A-BASE-002", "status": "PASS", "note": "No unique local commits vs origin/main before this PR; no reset/force-push"},
-    {"id": "A-BASE-003", "status": "PASS", "note": "Drift gate fired; SOURCE_SYNCED blocked"},
-    {"id": "A-COMPOSE-001", "status": "BLOCKED", "note": "Static override checks PASS; docker compose config SOT unavailable (no Docker)"},
-    {"id": "A-COMPOSE-002", "status": "BLOCKED", "note": "Image revision labels require built images"},
-    {"id": "A-COMPOSE-003", "status": "BLOCKED", "note": "Static isolation checks PASS; resolved compose/inspect BLOCKED without Docker. VNC oracle GAP-VNC-ORACLE"},
-    {"id": "A-BUILD-001", "status": "PASS", "note": "Unit tests generate schema-valid metadata; image digest remains null until build"},
-    {"id": "A-BUILD-002", "status": "PASS", "note": "Dirty metadata uses -dirty tag; release_eligible derived false"},
-    {"id": "A-SEC-001", "status": "PASS", "note": "git check-ignore matches enterprise env/data files; not tracked"},
-    {"id": "A-SEC-002", "status": "BLOCKED", "note": ".dockerignore lists .enterprise-data/; image filesystem inspect needs Docker"},
-    {"id": "A-CI-001", "status": "BLOCKED", "note": "enterprise-build.yml has push:false; GitHub job success pending PR CI"},
-    {"id": "A-CI-002", "status": "BLOCKED", "note": "GAP-CI-EXISTING-JOBS; static job names retained; runtime success pending PR CI"},
-    {"id": "A-WF-001", "status": "PASS", "note": "7 listed jobs contain github.repository == Skyvern-AI/skyvern"},
-    {"id": "A-WF-002", "status": "BLOCKED", "note": "Fork CI remaining active is pending GitHub Actions on this PR"},
-    {"id": "A-SMOKE-001", "status": "BLOCKED", "note": "DOCKER_STATE_UNAVAILABLE; not SKIPPED-as-PASS"},
-    {"id": "A-SMOKE-002", "status": "BLOCKED", "note": "Dashboard GET / not executed; no screenshot generated"},
+    {"id": "A-STATE-001", "status": "PASS", "note": "preflight: docker.available=true on this VM after local dockerd"},
+    {"id": "A-STATE-002", "status": "PASS", "note": "Dirty sync entry still unit-tested"},
+    {"id": "A-BASE-001", "status": "PASS", "note": "Pinned SHA unchanged"},
+    {"id": "A-BASE-002", "status": "PASS", "note": "No reset/force-push of main"},
+    {"id": "A-BASE-003", "status": "PASS", "note": "Drift gate remains; SOURCE_SYNCED not performed"},
+    {"id": "A-COMPOSE-001", "status": "PASS", "note": "Live docker compose config on this VM; no official latest"},
+    {"id": "A-COMPOSE-002", "status": "PASS", "note": "OCI revision/source/version labels on both images"},
+    {"id": "A-COMPOSE-003", "status": "PASS", "note": "Published ports 18000/16080/18080/19090 only; 5432 unpublished. VNC oracle GAP-VNC-ORACLE still not treated as a complete PRD oracle."},
+    {"id": "A-BUILD-001", "status": "PASS", "note": "Digests backfilled after source build"},
+    {"id": "A-BUILD-002", "status": "PASS", "note": "This build was clean (no -dirty tag)"},
+    {"id": "A-SEC-001", "status": "PASS", "note": "gitignore/dockerignore cover enterprise env/data"},
+    {"id": "A-SEC-002", "status": "PASS", "note": "inspect_image_secrets found no .env.enterprise/.enterprise-data in images"},
+    {"id": "A-CI-001", "status": "PASS", "note": "f29a915fd 16 GitHub checks green; this round adds more CI"},
+    {"id": "A-CI-002", "status": "PASS", "note": "Existing ci.yml jobs still present; GAP-CI-EXISTING-JOBS is about PRD enumeration not runtime"},
+    {"id": "A-WF-001", "status": "PASS", "note": "7 listed jobs still guarded"},
+    {"id": "A-WF-002", "status": "PASS", "note": "enterprise-build push:false jobs succeeded on prior SHA"},
+    {"id": "A-SMOKE-001", "status": "PASS", "note": "This isolated VM only; postgres healthy, alembic 4cbd8a8e6c47, API 200"},
+    {"id": "A-SMOKE-002", "status": "PASS", "note": "GET / 200 and real Chrome screenshots. GAP-DASHBOARD-ORG Organization steps still BLOCKED"},
     {"id": "A-SMOKE-003", "status": "BLOCKED", "note": "GAP-PRODUCTION-IDENTITY; user production snapshot UNKNOWN"},
-    {"id": "A-DOC-001", "status": "BLOCKED", "note": "Docs match scripts; end-to-end documented run needs Docker"},
-    {"id": "A-ROLLBACK-001", "status": "BLOCKED", "note": "stop_smoke.sh has no volumes flag; live stop not executed without a stack"}
+    {"id": "A-DOC-001", "status": "PASS", "note": "Documented commands match scripts; isolated VM ran them"},
+    {"id": "A-ROLLBACK-001", "status": "PASS", "note": "stop_smoke retained .enterprise-data; no -v"}
   ]
 }

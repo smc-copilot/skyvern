@@ -86,3 +86,4 @@ def test_smoke_waits_for_postgres_api_and_ui() -> None:
     assert "down --remove-orphans" in text
     assert "inspect_image_secrets.py" in text
     assert "SECRET_IN_IMAGE" in text
+    assert "SMOKE_STACK_START_FAILED" in text

@@ -52,6 +52,15 @@ def docker_state() -> dict[str, Any]:
         if result.returncode != 0 and key == "docker_ps":
             snapshot["available"] = False
             snapshot["error_code"] = "DOCKER_STATE_UNAVAILABLE"
+    nf_path = Path("/proc/sys/net/bridge/bridge-nf-call-iptables")
+    if nf_path.is_file():
+        snapshot["bridge_nf_call_iptables"] = nf_path.read_text(encoding="utf-8").strip()
+        if snapshot["bridge_nf_call_iptables"] == "1":
+            snapshot["icc_hint"] = (
+                "Nested Docker may drop compose container-to-container TCP when "
+                "net.bridge.bridge-nf-call-iptables=1. On this isolated VM only, "
+                "set it to 0; do not change a user's production host."
+            )
     return snapshot
 
 

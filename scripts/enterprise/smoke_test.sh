@@ -127,7 +127,10 @@ cleanup_on_fail() {
   enterprise_compose down --remove-orphans >/dev/null 2>&1 || true
 }
 
-enterprise_compose up -d
+if ! enterprise_compose up -d; then
+  cleanup_on_fail "SMOKE_STACK_START_FAILED"
+  exit 1
+fi
 
 mkdir -p "$EVIDENCE/smoke-logs"
 
