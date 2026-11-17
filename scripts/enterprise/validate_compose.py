@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -15,7 +16,11 @@ from compose_static import assert_default_compose_unmodified_images, assert_ente
 from constants import (
     BACKEND_IMAGE_REPOSITORY,
     COMPOSE_PROJECT_NAME,
+    ENTERPRISE_API_PORT_DEFAULT,
+    ENTERPRISE_ARTIFACT_PORT_DEFAULT,
     ENTERPRISE_DATA_DIRNAME,
+    ENTERPRISE_UI_PORT_DEFAULT,
+    ENTERPRISE_VNC_PORT_DEFAULT,
     OFFICIAL_BACKEND_IMAGE,
     OFFICIAL_UI_IMAGE,
     PRODUCTION_VOLUME_MARKERS,
@@ -23,6 +28,43 @@ from constants import (
 )
 from errors import EnterpriseError
 from git_state import repo_root_from_cwd
+
+FORBIDDEN_PUBLISHED_PORTS = frozenset({8000, 6080, 8080, 9090, 5432})
+REQUIRED_PUBLISHED_PORTS = frozenset(
+    {
+        ENTERPRISE_API_PORT_DEFAULT,
+        ENTERPRISE_VNC_PORT_DEFAULT,
+        ENTERPRISE_UI_PORT_DEFAULT,
+        ENTERPRISE_ARTIFACT_PORT_DEFAULT,
+    }
+)
+
+
+def published_ports_from_resolved(resolved: str) -> set[int]:
+    """Return host ports published in a `docker compose config` document."""
+    ports: set[int] = set()
+    for match in re.finditer(r"published:\s*[\"']?(\d+)[\"']?", resolved):
+        ports.add(int(match.group(1)))
+    return ports
+
+
+def assert_resolved_isolation(resolved: str) -> dict[str, Any]:
+    """Fail if the merged compose still publishes default ports or production mounts."""
+    if OFFICIAL_BACKEND_IMAGE in resolved or OFFICIAL_UI_IMAGE in resolved:
+        raise EnterpriseError("OFFICIAL_IMAGE_REFERENCE_FOUND", "resolved config still references official latest")
+    if BACKEND_IMAGE_REPOSITORY not in resolved or UI_IMAGE_REPOSITORY not in resolved:
+        raise EnterpriseError("BUILD_TAG_MISSING", "resolved config missing local image repositories")
+    published = published_ports_from_resolved(resolved)
+    forbidden = published & FORBIDDEN_PUBLISHED_PORTS
+    if forbidden:
+        raise EnterpriseError("PORT_CONFLICT", f"resolved compose still publishes {sorted(forbidden)}")
+    missing = REQUIRED_PUBLISHED_PORTS - published
+    if missing:
+        raise EnterpriseError("PORT_CONFLICT", f"resolved compose missing isolated ports {sorted(missing)}")
+    for marker in PRODUCTION_VOLUME_MARKERS:
+        if f"{marker}:" in resolved and ENTERPRISE_DATA_DIRNAME not in marker:
+            raise EnterpriseError("PRODUCTION_VOLUME_REFERENCE", f"resolved config mounts {marker}")
+    return {"published_ports": sorted(published), "official_latest_reference_count": 0}
 
 
 def redact(text: str) -> str:
@@ -65,13 +107,7 @@ def docker_compose_config(repo_root: Path) -> str:
     if result.returncode != 0:
         raise EnterpriseError("SMOKE_STACK_START_FAILED", result.stderr.strip() or "docker compose config failed")
     resolved = result.stdout
-    if OFFICIAL_BACKEND_IMAGE in resolved or OFFICIAL_UI_IMAGE in resolved:
-        raise EnterpriseError("OFFICIAL_IMAGE_REFERENCE_FOUND", "resolved config still references official latest")
-    if BACKEND_IMAGE_REPOSITORY not in resolved or UI_IMAGE_REPOSITORY not in resolved:
-        raise EnterpriseError("BUILD_TAG_MISSING", "resolved config missing local image repositories")
-    for marker in PRODUCTION_VOLUME_MARKERS:
-        if f"{marker}:" in resolved and ENTERPRISE_DATA_DIRNAME not in marker:
-            raise EnterpriseError("PRODUCTION_VOLUME_REFERENCE", f"resolved config mounts {marker}")
+    assert_resolved_isolation(resolved)
     return resolved
 
 

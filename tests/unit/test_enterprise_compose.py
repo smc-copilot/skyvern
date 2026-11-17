@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -12,6 +14,7 @@ from tests.unit.enterprise_pr00_loader import load_enterprise_module
 compose_static = load_enterprise_module("compose_static")
 constants = load_enterprise_module("constants")
 git_state = load_enterprise_module("git_state")
+validate_compose = load_enterprise_module("validate_compose")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -60,6 +63,108 @@ def test_enterprise_example_env_has_no_real_secret_and_empty_ui_key() -> None:
     assert "VITE_SKYVERN_API_KEY=" in frontend
     assert "localhost:18000" in frontend
     assert "localhost:19090" in frontend
+
+
+def test_resolved_isolation_rejects_default_published_ports() -> None:
+    resolved = """
+services:
+  skyvern:
+    image: local/smc-copilot-skyvern-backend:tag
+    ports:
+      - published: "8000"
+        target: 8000
+      - published: "18000"
+        target: 8000
+  skyvern-ui:
+    image: local/smc-copilot-skyvern-ui:tag
+    ports:
+      - published: "18080"
+        target: 8080
+      - published: "19090"
+        target: 9090
+"""
+    with pytest.raises(Exception) as exc:
+        validate_compose.assert_resolved_isolation(resolved)
+    assert getattr(exc.value, "code", None) == "PORT_CONFLICT"
+
+
+def test_resolved_isolation_accepts_enterprise_ports_only() -> None:
+    resolved = """
+services:
+  skyvern:
+    image: local/smc-copilot-skyvern-backend:tag
+    ports:
+      - published: "18000"
+        target: 8000
+      - published: "16080"
+        target: 6080
+  skyvern-ui:
+    image: local/smc-copilot-skyvern-ui:tag
+    ports:
+      - published: "18080"
+        target: 8080
+      - published: "19090"
+        target: 9090
+"""
+    findings = validate_compose.assert_resolved_isolation(resolved)
+    assert findings["published_ports"] == [16080, 18000, 18080, 19090]
+
+
+def _docker_daemon_available() -> bool:
+    if shutil.which("docker") is None:
+        return False
+    result = subprocess.run(["docker", "info"], check=False, capture_output=True, text=True)
+    return result.returncode == 0
+
+
+@pytest.mark.skipif(not _docker_daemon_available(), reason="docker daemon unavailable")
+def test_live_docker_compose_config_uses_isolated_ports(tmp_path: Path) -> None:
+    env_file = tmp_path / "compose.env"
+    env_file.write_text(
+        "ENTERPRISE_POSTGRES_PASSWORD=ciisolatedplaceholder\n"
+        "SKYVERN_BUILD_TAG=ci-isolated-placeholder\n"
+        "SKYVERN_BUILD_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+        "SKYVERN_SOURCE_VERSION=0.0.0-test\n"
+        "SKYVERN_BUILD_DIRTY=true\n"
+        "SKYVERN_BACKEND_ENV_FILE=.env.enterprise.example\n"
+        "SKYVERN_FRONTEND_ENV_FILE=skyvern-frontend/.env.enterprise.example\n",
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env.update(
+        {
+            "ENTERPRISE_POSTGRES_PASSWORD": "ciisolatedplaceholder",
+            "SKYVERN_BUILD_TAG": "ci-isolated-placeholder",
+            "SKYVERN_BUILD_SHA": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "SKYVERN_SOURCE_VERSION": "0.0.0-test",
+            "SKYVERN_BUILD_DIRTY": "true",
+        }
+    )
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-p",
+            "skyvern-enterprise-pr00-configtest",
+            "--env-file",
+            str(env_file),
+            "-f",
+            "docker-compose.yml",
+            "-f",
+            "docker-compose.enterprise.yml",
+            "config",
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+        text=True,
+        capture_output=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    findings = validate_compose.assert_resolved_isolation(result.stdout)
+    assert 8000 not in findings["published_ports"]
+    assert 8080 not in findings["published_ports"]
+    assert findings["published_ports"] == [16080, 18000, 18080, 19090]
 
 
 def test_dirty_worktree_blocks_sync(tmp_path: Path) -> None:

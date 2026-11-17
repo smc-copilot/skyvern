@@ -18,6 +18,8 @@ def test_gitignore_and_dockerignore_cover_enterprise_paths() -> None:
     assert flags["gitignore_frontend_env_enterprise"] is True
     assert flags["gitignore_enterprise_data"] is True
     assert flags["dockerignore_enterprise_data"] is True
+    assert flags["dockerignore_env_enterprise"] is True
+    assert flags["dockerignore_frontend_env_enterprise"] is True
 
 
 def test_git_check_ignore_matches_secret_files() -> None:

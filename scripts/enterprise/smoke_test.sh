@@ -160,4 +160,9 @@ if ! wait_for_cmd 180 http_is_200 \
   exit 1
 fi
 
+if ! python3 scripts/enterprise/inspect_image_secrets.py --output-dir "$EVIDENCE"; then
+  cleanup_on_fail "SECRET_IN_IMAGE"
+  exit 1
+fi
+
 echo "SMOKE_OK"

@@ -109,4 +109,7 @@ def inspect_ignore_files(repo_root: Path) -> dict[str, bool]:
         "gitignore_frontend_env_enterprise": "skyvern-frontend/.env.enterprise" in gitignore,
         "gitignore_enterprise_data": ".enterprise-data/" in gitignore,
         "dockerignore_enterprise_data": ".enterprise-data/" in dockerignore,
+        "dockerignore_env_enterprise": ".env.enterprise" in dockerignore,
+        "dockerignore_frontend_env_enterprise": "skyvern-frontend/.env.enterprise" in dockerignore
+        or "skyvern-frontend/.env*" in dockerignore,
     }
