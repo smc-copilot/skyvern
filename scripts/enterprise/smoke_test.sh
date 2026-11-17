@@ -38,8 +38,12 @@ if ! python3 - <<'PY'
 import json
 from pathlib import Path
 meta = json.loads(Path(".enterprise-data/build-metadata.json").read_text())
+if meta.get("metadata_state") != "acceptance":
+    raise SystemExit("BUILD_METADATA_STATE_INVALID")
 if not meta.get("backend_image_digest") or not meta.get("ui_image_digest"):
     raise SystemExit("BUILD_FAILED")
+if meta.get("source_dirty") and meta.get("release_eligible"):
+    raise SystemExit("DIRTY_RELEASE_BUILD")
 PY
 then
   echo "BUILD_FAILED" >&2
@@ -165,6 +169,15 @@ fi
 
 if ! python3 scripts/enterprise/inspect_image_secrets.py --output-dir "$EVIDENCE"; then
   cleanup_on_fail "SECRET_IN_IMAGE"
+  exit 1
+fi
+
+# VNC oracle is independent of Dashboard GET /. HTTP 200 on :18080 is not VNC PASS.
+if ! wait_for_cmd 90 python3 scripts/enterprise/vnc_oracle.py \
+  --host 127.0.0.1 \
+  --port "${ENTERPRISE_VNC_PORT:-16080}" \
+  --output "$EVIDENCE/vnc-oracle.json"; then
+  cleanup_on_fail "SMOKE_VNC_FAILED"
   exit 1
 fi
 

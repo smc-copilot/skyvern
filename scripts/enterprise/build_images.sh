@@ -24,7 +24,7 @@ if [[ -n "$STATUS" && "$ALLOW_DIRTY" -ne 1 ]]; then
   exit 1
 fi
 
-python3 scripts/enterprise/build_metadata.py --output-dir .enterprise-data
+python3 scripts/enterprise/build_metadata.py --output-dir .enterprise-data --require-state draft
 
 set -a
 # shellcheck disable=SC1091
@@ -54,7 +54,8 @@ python3 scripts/enterprise/build_metadata.py \
   --output-dir .enterprise-data \
   --backfill-digests \
   --backend-digest "$backend_digest" \
-  --ui-digest "$ui_digest"
+  --ui-digest "$ui_digest" \
+  --require-state acceptance
 
 mkdir -p .enterprise-data/evidence/pr-00
 docker image inspect "local/smc-copilot-skyvern-backend:${SKYVERN_BUILD_TAG}" \

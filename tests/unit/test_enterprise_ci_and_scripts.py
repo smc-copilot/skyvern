@@ -53,6 +53,10 @@ def test_build_images_does_not_push() -> None:
     assert "docker push" not in text
     assert "compose push" not in text
     assert "skyvern-enterprise-pr00" in text
+    assert "--require-state draft" in text
+    assert "--require-state acceptance" in text
+    assert "git stash" not in text
+    assert "git reset --hard" not in text
 
 
 def test_verify_baseline_exits_nonzero_on_drift_without_merging() -> None:
@@ -87,3 +91,6 @@ def test_smoke_waits_for_postgres_api_and_ui() -> None:
     assert "inspect_image_secrets.py" in text
     assert "SECRET_IN_IMAGE" in text
     assert "SMOKE_STACK_START_FAILED" in text
+    assert "vnc_oracle.py" in text
+    assert "SMOKE_VNC_FAILED" in text
+    assert "BUILD_METADATA_STATE_INVALID" in text

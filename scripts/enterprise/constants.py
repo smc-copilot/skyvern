@@ -44,8 +44,13 @@ PRODUCTION_VOLUME_MARKERS = (
 )
 
 ENTERPRISE_DATA_DIRNAME = ".enterprise-data"
-BUILD_METADATA_SCHEMA_ID = "ewdac://skyvern/build-metadata/1.0"
-BUILD_METADATA_SCHEMA_VERSION = "1.0"
+RAW_EVIDENCE_RELPATH = ".enterprise-data/evidence/pr-00"
+MANAGED_EVIDENCE_RELPATH = "docs/enterprise/pr00-cloud-agent-evidence.json"
+BUILD_METADATA_SCHEMA_ID = "ewdac://skyvern/build-metadata/1.1"
+BUILD_METADATA_SCHEMA_VERSION = "1.1"
+VNC_ORACLE_TIMEOUT_SECONDS = 5
+VNC_RFB_PREFIX = b"RFB "
+PROTECTED_CI_JOBS_SCHEMA = "protected-ci-jobs.json"
 
 UPSTREAM_REPO_GUARD = "github.repository == 'Skyvern-AI/skyvern'"
 

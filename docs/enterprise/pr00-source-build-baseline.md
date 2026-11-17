@@ -2,7 +2,7 @@
 
 文档状态：**APPROVED_FOR_PLAN**（用户 2026-11-16 明确批准将 PRD 状态从 REVIEW 改为 APPROVED_FOR_PLAN，并在 `smc-copilot/skyvern` 新分支推进 PR-00）。
 
-本文件不是正式 Release Gate 通过声明。PRD 质量门仍要求「无 SPEC_SEMANTIC_GAP」才能声称完整 Plan/Release 通过；下列缺口已按范围阻断，未扩大成无关工作全局停工。
+本文件不是正式 Release Gate 通过声明。2026-11-17 五项语义澄清已写成可机判规则（见 `docs/enterprise/pr00-semantic-clarifications.md`）。其余缺口仍按范围阻断，未扩大成无关工作全局停工。
 
 ## 仓库身份（以最新明确目标为准）
 
@@ -32,18 +32,17 @@ PRD 原文中的 `loudon84/skyvern` 与 `local/loudon84-skyvern-*` 已被用户�
 
 n8n 仅作未来集成参考，本 PR 不改 `integrations/n8n`，不执行 `submodule update --remote`。
 
-## SPEC_SEMANTIC_GAP（阻断对应部分，不猜测补全）
+## SPEC_SEMANTIC_GAP
+
+2026-11-17 **本轮澄清决策**已关闭规则定义（不是现场事实 PASS）：`GAP-EVIDENCE-PATH`、`GAP-DIRTY-BOUNDARY`、`GAP-BUILD-STATE-MACHINE`、`GAP-VNC-ORACLE`、`GAP-CI-EXISTING-JOBS`。细则与机判入口见 `docs/enterprise/pr00-semantic-clarifications.md`。
+
+仍开放（非本轮）：
 
 | ID | 缺口 | 阻断范围 |
 | --- | --- | --- |
-| GAP-EVIDENCE-PATH | REQ-STATE-001 写「用户指定的工作区外 Evidence 目录」，§24.1 又规定 `.enterprise-data/evidence/pr-00/` | 未另指定目录时，脚本默认写入 `.enterprise-data/evidence/pr-00/`（gitignore）。不把两种路径静默等同为同一权威源。 |
-| GAP-DIRTY-BOUNDARY | Dirty 阻断同步（REQ-STATE / 冲突表）与 `build_images.sh --allow-dirty`（§13.6）并存 | 同步入口遇 Dirty → `WORKTREE_DIRTY`。构建默认真工作区；开发可用 `--allow-dirty`，Tag 必须带 `-dirty`，不得算 Release。 |
 | GAP-DASHBOARD-ORG | A-SMOKE-002 是 `GET /` HTTP 200；Golden Consumer 要求「通过 UI 使用测试 Organization」，未定义操作步骤 | HTTP 200 可在 Smoke 中验证。浏览器内使用测试 Organization **BLOCKED**，不伪造页面操作。 |
-| GAP-BUILD-STATE-MACHINE | §8.1 无 `BUILD_METADATA_CREATED`；REQ-BUILD-001 / §9.1 要求构建前 JSON（digest=null）再回填 | 按 §9.1 实现：先 metadata，再 build，再 backfill。不把「文件已生成」当成镜像已构建。 |
 | GAP-PRODUCTION-IDENTITY | 用户生产实例、真实本地补丁、生产快照无法在本云环境核验 | 生产 Before/After 与本地补丁分类 **BLOCKED / UNKNOWN**。本云工作区不能代替用户现场验收。 |
-| GAP-CI-EXISTING-JOBS | A-CI-002 `required_existing_ci_jobs` 未列举集合 | 静态确认 `ci.yml` 仍含 `pre-commit` / `pytest` / `test` / `fe-lint-build` / `pip-package-smoke`。GitHub 上这些 Job 的实际 success **待 PR CI 运行后才能记 VERIFIED**。 |
-| GAP-VNC-ORACLE | REQ 规定 VNC Host 16080，A-COMPOSE-003 Oracle 未包含该端口 | Override 映射 16080。不把未写进 Oracle 的 VNC 检查标 PASS。 |
-| GAP-WF-EXTRA | 仓库另有 `claude.yml` / `claude-code-review.yml` / `inactive-issues-and-prs.yml` / `zizmor.yml` 等写权限工作流，不在 PRD 的 7 个 Job 清单内 | 只给清单内 Job 加身份门禁。额外工作流记缺口，不擅自扩 Guard、不声称已全部无副作用。 |
+| GAP-WF-EXTRA | 仓库另有 `claude.yml` / `claude-code-review.yml` / `inactive-issues-and-prs.yml` 等写权限工作流，不在 PRD 的 7 个 Job 清单内 | 只给清单内 Job 加身份门禁。额外工作流记缺口，不擅自扩 Guard。`zizmor` 仅作为 path-filter 可选项进入 CI 清单，不扩副作用 Guard。 |
 
 ## 不在本 PR 范围
 
@@ -61,7 +60,10 @@ n8n 仅作未来集成参考，本 PR 不改 `integrations/n8n`，不执行 `sub
 python3 scripts/enterprise/preflight.py
 python3 scripts/enterprise/verify_upstream_baseline.py
 python3 scripts/enterprise/check_upstream_workflow_guards.py
+python3 scripts/enterprise/check_protected_ci_jobs.py
+python3 scripts/enterprise/evidence_policy.py
 python3 scripts/enterprise/validate_compose.py
+python3 scripts/enterprise/vnc_oracle.py --host 127.0.0.1 --port 16080
 ```
 
 环境文件（已存在则不得覆盖）：
@@ -95,8 +97,11 @@ scripts/enterprise/stop_smoke.sh            # 停止容器与网络，保留 .en
 
 ## Evidence
 
-默认目录：`.enterprise-data/evidence/pr-00/`（不入库）。
+未纳管原始权威目录：`.enterprise-data/evidence/pr-00/`（gitignore）。  
+可纳管脱敏摘要：`docs/enterprise/pr00-cloud-agent-evidence.json`（含 `history` / `current`）。摘要不是 raw 权威，不能证明未运行的 SHA。
 
-`SKIPPED` / `BLOCKED` 不等于 `PASS`。没有 Docker 时，镜像 Digest、容器文件系统、API/UI HTTP、页面截图必须标 **BLOCKED**，不得用「文件已创建」代替运行验收。
+`SKIPPED` / `BLOCKED` 不等于 `PASS`。没有 Docker 时，镜像 Digest、容器文件系统、API/UI HTTP、VNC oracle、页面截图必须标 **BLOCKED**，不得用「文件已创建」代替运行验收。
 
-本隔离 Cloud Agent VM（2026-11-17）已用官方 Docker CE 本地 daemon 完成 compose config、源码构建、Smoke、截图与 stop。那是本 VM 运行验收，不能代替用户生产现场。Golden Consumer 测试 Organization 步骤仍未定义，截图只证明 `GET /` 渲染了 Dashboard，不证明 Organization 操作。
+`98e5106ac63dfd38a03a450209b5d1046c027fba` 的 GitHub Actions **从未入队**（0 workflow_runs）。其后提交的 CI 不能证明该 SHA 通过。
+
+本隔离 Cloud Agent VM（2026-11-17）曾用官方 Docker CE 完成本地 compose/build/smoke；那是当时 SHA 的 VM 运行验收，不能代替用户生产现场，也不能代替新 SHA 的 VNC/Actions 验收。Golden Consumer 测试 Organization 步骤仍未定义。

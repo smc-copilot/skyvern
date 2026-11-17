@@ -38,7 +38,9 @@ def test_clean_metadata_schema_and_tag(tmp_path: Path) -> None:
     document = build_metadata.collect_metadata(repo)
     build_metadata.write_metadata(output, document)
     sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
-    assert document["schema_version"] == "1.0"
+    assert document["schema_version"] == "1.1"
+    assert document["metadata_state"] == "draft"
+    assert document["release_eligible"] is False
     assert document["repository"] == "smc-copilot/skyvern"
     assert document["source_commit"] == sha
     assert document["source_version"] == "1.0.57"
@@ -65,8 +67,15 @@ def test_dirty_metadata_is_not_release_eligible(tmp_path: Path) -> None:
     document = build_metadata.collect_metadata(repo)
     assert document["source_dirty"] is True
     assert document["build_tag"].endswith("-dirty")
-    release_eligible = not document["source_dirty"]
-    assert release_eligible is False
+    assert document["metadata_state"] == "draft"
+    assert document["release_eligible"] is False
+    updated = build_metadata.backfill_digests(document, "sha256:backend", "sha256:ui")
+    assert updated["metadata_state"] == "acceptance"
+    assert updated["release_eligible"] is False
+    updated["release_eligible"] = True
+    with pytest.raises(Exception) as exc:
+        build_metadata.validate_metadata(updated)
+    assert getattr(exc.value, "code", None) == "DIRTY_RELEASE_BUILD"
 
 
 def test_secret_like_field_rejected() -> None:
@@ -94,3 +103,12 @@ def test_backfill_preserves_source_identity() -> None:
     assert updated["backend_image_digest"] == "sha256:backend"
     assert updated["ui_image_digest"] == "sha256:ui"
     assert updated["ui_app_version"] == updated["source_commit"]
+    assert document["metadata_state"] == "draft"
+    assert updated["metadata_state"] == "acceptance"
+    assert updated["release_eligible"] is True
+
+
+def test_mixed_digests_are_invalid() -> None:
+    with pytest.raises(Exception) as exc:
+        build_metadata.derive_metadata_state("sha256:only-one", None)
+    assert getattr(exc.value, "code", None) == "BUILD_METADATA_STATE_INVALID"

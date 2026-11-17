@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from constants import ENTERPRISE_REPOSITORY
+from constants import ENTERPRISE_REPOSITORY, RAW_EVIDENCE_RELPATH
 from errors import EnterpriseError
 from git_state import (
     assert_fork_identity,
@@ -87,9 +87,12 @@ def collect_preflight(repo_root: Path) -> dict[str, Any]:
         .stdout.strip()
         .splitlines(),
         "codeblock_sample_search": "GOLDEN_CODEBLOCK_NOT_FOUND",
+        "evidence_layer": "unmanaged_raw",
+        "raw_evidence_relpath": RAW_EVIDENCE_RELPATH,
         "note": (
             "This cloud workspace is not the user's production host. Production "
-            "container identity remains UNKNOWN. See SPEC_SEMANTIC_GAP GAP-PRODUCTION-IDENTITY."
+            "container identity remains UNKNOWN. See SPEC_SEMANTIC_GAP GAP-PRODUCTION-IDENTITY. "
+            "Preflight writes unmanaged raw evidence; docs/enterprise summaries are citations only."
         ),
     }
     return report
@@ -107,11 +110,19 @@ def write_preflight(report: dict[str, Any], output_dir: Path) -> Path:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=None)
-    parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Unmanaged raw evidence directory. A path outside the worktree is staging "
+            "only; import it with scripts/enterprise/evidence_policy.py --import-from."
+        ),
+    )
     args = parser.parse_args(argv)
     try:
         repo_root = args.repo_root.resolve() if args.repo_root else repo_root_from_cwd()
-        output_dir = args.output_dir if args.output_dir else repo_root / ".enterprise-data" / "evidence" / "pr-00"
+        output_dir = args.output_dir if args.output_dir else repo_root / RAW_EVIDENCE_RELPATH
         report = collect_preflight(repo_root)
         write_preflight(report, output_dir)
         print(json.dumps(report, indent=2, sort_keys=True))
