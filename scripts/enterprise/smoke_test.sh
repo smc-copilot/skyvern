@@ -36,18 +36,23 @@ python3 scripts/enterprise/validate_compose.py --require-resolved-config --outpu
 
 if ! python3 - <<'PY'
 import json
+import sys
 from pathlib import Path
+
+def fail(code: str, message: str) -> None:
+    print(code, file=sys.stderr)
+    print(message, file=sys.stderr)
+    raise SystemExit(1)
+
 meta = json.loads(Path(".enterprise-data/build-metadata.json").read_text())
 if meta.get("metadata_state") != "acceptance":
-    raise SystemExit("BUILD_METADATA_STATE_INVALID")
+    fail("BUILD_METADATA_STATE_INVALID", "Smoke requires acceptance metadata, not draft")
 if not meta.get("backend_image_digest") or not meta.get("ui_image_digest"):
-    raise SystemExit("BUILD_FAILED")
+    fail("BUILD_FAILED", "Refusing to start Smoke Stack without image digests")
 if meta.get("source_dirty") and meta.get("release_eligible"):
-    raise SystemExit("DIRTY_RELEASE_BUILD")
+    fail("DIRTY_RELEASE_BUILD", "dirty metadata cannot be release_eligible")
 PY
 then
-  echo "BUILD_FAILED" >&2
-  echo "Refusing to start Smoke Stack without image digests" >&2
   exit 1
 fi
 

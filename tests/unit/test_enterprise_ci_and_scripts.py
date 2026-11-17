@@ -78,6 +78,14 @@ def test_smoke_refuses_missing_images_and_placeholder_password() -> None:
     assert "BUILD_FAILED" in text
     assert "SMOKE_DB_SECRET_MISSING" in text
     assert "down -v" not in "\n".join(_command_lines(REPO_ROOT / "scripts" / "enterprise" / "smoke_test.sh"))
+    meta_block, after_meta = text.split("python3 - <<'PY'", 1)[1].split("PY", 1)
+    assert "BUILD_METADATA_STATE_INVALID" in meta_block
+    assert "DIRTY_RELEASE_BUILD" in meta_block
+    assert "fail(" in meta_block
+    # Shell must not overwrite the Python error code with a trailing BUILD_FAILED.
+    trailing = after_meta.split("check_port()", 1)[0]
+    assert "echo \"BUILD_FAILED\"" not in trailing
+    assert "exit 1" in trailing
 
 
 def test_smoke_waits_for_postgres_api_and_ui() -> None:
